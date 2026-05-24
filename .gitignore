@@ -1,0 +1,22 @@
+# trace data (39 GB: SDM 19G + DiT 22G + fastdllm) — never commit
+traces/
+*.npz
+*.npy
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.ipynb_checkpoints/
+
+# editor / temp
+*.bak
+*.swp
+.DS_Store
+
+# large model weights (if any copied locally)
+*.safetensors
+*.bin
+*.pt
+*.pth

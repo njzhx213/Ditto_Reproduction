@@ -1,0 +1,23 @@
+{
+  "n_layers": 282,
+  "total_macs_giga": 338.6105856,
+  "by_kind": {
+    "linear": {
+      "count": 184,
+      "macs_giga": 116.63753216
+    },
+    "conv": {
+      "count": 98,
+      "macs_giga": 221.97305344
+    }
+  },
+  "speedup_diff_only": 4.707674780460754,
+  "speedup_defo": 5.52366830845395,
+  "defo_flip_frac": 0.3049645390070922,
+  "bitwidth_used": {
+    "zero": 0.459,
+    "le4": 0.534,
+    "gt4": 0.007,
+    "NOTE": "extrapolated from 6 attention layers"
+  }
+}

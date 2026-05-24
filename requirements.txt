@@ -1,0 +1,36 @@
+# Core dependencies (shared with Diffusion_Skipping)
+torch>=2.5.0
+transformers>=4.53.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+
+# Stable Diffusion + samplers (for Week 1 trace collection)
+diffusers>=0.27.0
+accelerate>=0.25.0
+safetensors>=0.4.0
+Pillow>=10.0.0
+
+# Cycle simulator + analysis
+pandas>=2.0.0
+scipy>=1.11.0
+tqdm>=4.65.0
+
+# RTL development (Week 3)
+cocotb>=1.8.0
+cocotb-bus>=0.2.1
+pytest>=7.4.0
+pytest-cov>=4.1.0
+# Verilator must be installed separately via apt or source build:
+#   sudo apt install verilator
+# Required Verilator version: >= 5.020
+
+# Optional: memory model upgrade (Week 2 if time permits)
+# ramulator2 — install from source: https://github.com/CMU-SAFARI/ramulator2
+
+# Optional: synthesis PPA (Week 4)
+# yosys — install separately
+# openroad — install separately
+
+# Dev / linting
+ruff>=0.1.0
+mypy>=1.7.0

@@ -1,0 +1,151 @@
+{
+  "total_macs_giga": 338.6105856,
+  "buffer_sweep": [
+    [
+      0.25,
+      1.4913662484958625
+    ],
+    [
+      0.5,
+      1.4913233563949064
+    ],
+    [
+      1,
+      1.4911145948692572
+    ],
+    [
+      2,
+      1.4866627828634171
+    ],
+    [
+      4,
+      1.4522677689573753
+    ],
+    [
+      8,
+      1.4182275547815661
+    ],
+    [
+      16,
+      1.3667093107773423
+    ],
+    [
+      32,
+      1.3412570466132825
+    ],
+    [
+      64,
+      1.3412570466132825
+    ],
+    [
+      128,
+      1.3412570466132825
+    ],
+    [
+      256,
+      1.3412570466132825
+    ]
+  ],
+  "buf_star_mb": 0.25,
+  "bandwidth_sweep": [
+    {
+      "bpc": 8,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 16,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 32,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 64,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 128,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 256,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6705261038383854,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 512,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6726962738152663,
+      "speedup_defo": 1.0032365182570193,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 1024,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.6928532163090767,
+      "speedup_defo": 1.0331488325520908,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 2048,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.7577490216111119,
+      "speedup_defo": 1.1170145494283767,
+      "flip_frac": 1.0,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 4096,
+      "buf": 262144.0,
+      "speedup_diff_only": 0.9489476222754663,
+      "speedup_defo": 1.3433028300914867,
+      "flip_frac": 0.8687943262411347,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0348362248030283
+    },
+    {
+      "bpc": 8192,
+      "buf": 262144.0,
+      "speedup_diff_only": 1.4082960129659308,
+      "speedup_defo": 1.8889512888554918,
+      "flip_frac": 0.5035460992907801,
+      "mem_ratio": 1.4913662484958625,
+      "mem_ratio_defo": 1.0880986134975676
+    }
+  ]
+}

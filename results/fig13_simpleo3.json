@@ -1,0 +1,8 @@
+{
+  "dram": "DDR4_ch8",
+  "n_layers": 282,
+  "speedup_diff_only": 0.5658501945491528,
+  "speedup_defo": 1.0,
+  "flip_frac": 1.0,
+  "elapsed_sec": 35.32905435562134
+}

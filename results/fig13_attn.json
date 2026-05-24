@@ -1,0 +1,54 @@
+{
+  "total_macs_giga": 401.63672064,
+  "rows": [
+    {
+      "bpc": 8,
+      "speedup_diff_only": 0.4061080283905907,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 32,
+      "speedup_diff_only": 0.4061080283905907,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 128,
+      "speedup_diff_only": 0.4061080283905907,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 512,
+      "speedup_diff_only": 0.4061080283905907,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 2048,
+      "speedup_diff_only": 0.40695984392316115,
+      "speedup_defo": 1.0020964660727376,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "bpc": 8192,
+      "speedup_diff_only": 0.4249730014069304,
+      "speedup_defo": 1.0424307540000821,
+      "flip_frac": 0.6502890173410405,
+      "mem_ratio_bare": 2.4623989926104337,
+      "mem_ratio_defo": 1.002019697661219
+    }
+  ],
+  "ceiling": 9.025080597563962
+}

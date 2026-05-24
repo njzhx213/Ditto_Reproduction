@@ -1,0 +1,47 @@
+{
+  "dram": "DDR4_8Gb_x8/DDR4_2400R",
+  "n_layers": 282,
+  "n_unique_shapes": 49,
+  "buffer_sweep": [
+    {
+      "buf_mb": 0.25,
+      "speedup_diff_only": 0.6652524888828879,
+      "speedup_defo": 1.0,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 1.503188664020228,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "buf_mb": 4.0,
+      "speedup_diff_only": 0.7036286017672196,
+      "speedup_defo": 1.0754300428005863,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 1.5284058096836277,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "buf_mb": 32.0,
+      "speedup_diff_only": 0.7884920532114444,
+      "speedup_defo": 1.2141897989358357,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 1.5398884414758136,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "buf_mb": 96.0,
+      "speedup_diff_only": 0.7884920532114444,
+      "speedup_defo": 1.2141897989358357,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 1.5398884414758136,
+      "mem_ratio_defo": 1.0
+    },
+    {
+      "buf_mb": 192.0,
+      "speedup_diff_only": 0.7884920532114444,
+      "speedup_defo": 1.2141897989358357,
+      "flip_frac": 1.0,
+      "mem_ratio_bare": 1.5398884414758136,
+      "mem_ratio_defo": 1.0
+    }
+  ]
+}

@@ -1,119 +1,85 @@
-# Fast-dLLM v2 Compute-Skipping Experiments
+# Ditto Reproduction
 
-Implementation and evaluation of two compute-skipping policies for Fast-dLLM v2 (Qwen2.5-7B-Instruct fine-tune), evaluated on GSM8K.
+Architecture-level reproduction and performance model of **Ditto: Accelerating Diffusion Model via Temporal Value Similarity** (HPCA 2025, Yonsei), for Coding Test 5 (*SOTA AI accelerator arch-level reproduction*).
 
-This repository contains:
-- **Phase A**: Motivation analysis — 11 figures characterizing cross-step similarity and attention sparsity in the model.
-- **Phase B**: Compute-skipping policies — 4 `SkipPolicy` classes covering token-level (cosine threshold, top-k%) and layer-level (cosine threshold with avg/max aggregation) skipping, swept over 18 settings × 100 GSM8K samples.
+Ditto accelerates diffusion inference by exploiting **temporal value similarity** — the activations of consecutive denoising steps are nearly identical, so the per-step *difference* is sparse and low-bit. Ditto computes on this difference with dynamic bit-width + zero-skip, and uses a runtime decision unit (**Defo**) to fall back to full-activation execution on memory-bound layers.
 
-## Headline result
+This repo takes the **performance-model path** (Test 5 allows perf-model *or* RTL), and adds an **extendability study across three workloads**: SD v1.4 UNet (image), DiT-XL/2 (image), and Fast-dLLM v2 (text diffusion LLM, *not benchmarked by the paper*).
 
-Token-level **TopK with k=50** achieves **85% GSM8K accuracy** (vs. 80% baseline) with **49.1% FLOPs reduction**, by always preserving the most-changed 50% of tokens per step while reusing the rest. See [writeup_phase_b.md](writeup_phase_b.md) for the full analysis.
+See **[docs/SUMMARY.md](docs/SUMMARY.md)** for the full, honest write-up (every number labeled paper-stated / inferred / measured; disagreements explained, not fitted away).
 
-![Phase B Accuracy vs FLOPs](figs/phase_b_acc_flops_v2.png)
+## Headline results
 
-## Setup
+| Quantity | Result | Paper | Status |
+|---|---|---|---|
+| Temporal-diff bit-width, SDM (zero) | 45.9% | 44.48% | reproduced |
+| Total MACs, SDM (incl. attention) | 401.6 G | ~340 G (linear-only public) | enumerated |
+| Compute ceiling, SDM (attn + VPU aware) | 8.89x | — | derived |
+| Bare memory-access ratio (incl. attention) | 2.46x | 2.75x (Fig 8) | approaches paper |
+| Speedup vs ITC | 1.5x at ~251 GB/s (bandwidth roofline) | 1.5x (Fig 13) | reproduced |
+| Energy, Ditto+Defo vs ITC (SDM) | saving ~34% (16-38% sweep) | 17.74% (Fig 13) | range contains paper |
+| Energy, Cambricon-D vs ITC (SDM) | 1.34x (inversion) | ~1.5x (Fig 13) | reproduced |
 
-```bash
-conda create -n fastdllm python=3.11
-conda activate fastdllm
-pip install -r requirements.txt
-```
+**Three-workload extendability trend** (SDM → DiT → Fast-dLLM): attention fraction 15.7 → 3.6 → 0.8%, temporal zero rate 45.9 → 67.2 → 80.3%, Ditto energy saving 34 → 46 → 70%, Cambricon-D inversion 1.34 → 1.04x. Ditto's temporal-difference acceleration generalizes across modalities and is strongest for large, linear-dominated text diffusion.
 
-Download the Fast-dLLM v2 7B model from HuggingFace:
+## What is reproduced
 
-```bash
-huggingface-cli download Efficient-Large-Model/Fast_dLLM_v2_7B \
-    --local-dir models/Fast_dLLM_v2_7B
-```
+- **Functional datapath** — three-stage Ditto algorithm, Encoding Unit (Fig 11), shift-and-add PE (Fig 12), bitwise-exact vs A8W8 on real traces; the attention two-sub-operation difference trick, int8 bitwise-verified.
+- **Bit-width** (Fig 5), **compute ceiling**, **memory ratio** (resolving the 2.75x gap by including previously-missed attention traffic).
+- **Speedup** as a bandwidth roofline (the paper does not publish Ditto's DRAM).
+- **Six-segment energy** (Fig 13) with CACTI-measured SRAM (818 pJ/64B), the Cambricon-D inversion, and Defo.
+- **Defo** runtime decision + the "naive difference is slower" rescue (Fig 16).
+- **Extendability**: DiT-XL/2 and Fast-dLLM v2, each with its own measured temporal sparsity.
 
-Update the `MODEL_PATH` constant at the top of the driver scripts to point to your local model directory.
-
-## Reproducing results
-
-### Phase A: motivation figures
-
-```bash
-# Run 100 GSM8K samples and log per (step, layer) similarity data
-python src/run_motivation_100.py
-
-# Generate figures
-python src/plot_token_motivation_100.py
-python src/plot_layer_motivation_100.py
-python src/plot_attn_weight_histogram.py
-```
-
-Outputs go to `figs/`.
-
-### Phase B: 18-setting compute-skipping sweep
-
-```bash
-# Run all 17 non-baseline settings × 100 samples (~14 hours on RTX 5080)
-python src/run_skip_experiment.py
-
-# Aggregate results and generate Figure 1 + Table 1
-python src/aggregate_results.py
-python src/improve_phase_b_plot.py
-```
-
-To run a single setting:
-
-```bash
-python src/run_skip_experiment.py --setting token_topk_50
-```
-
-### Sanity tests
-
-The `sanity/` folder contains short scripts verifying:
-- `NoSkipPolicy` reproduces the baseline forward exactly
-- `TokenTopKPolicy`, `TokenCossimPolicy`, `LayerCossimPolicy` actually substitute outputs and yield expected reuse statistics
-
-## Repository layout
+## Layout
 
 | Path | Purpose |
 |---|---|
-| `src/policies.py` | 4 `SkipPolicy` classes + `ALL_SETTINGS` list (18 configs) |
-| `src/step_cache.py` | Manager + hooks; captures similarities and substitutes attn/MLP outputs based on skip mask |
-| `src/run_skip_experiment.py` | Phase B driver: 17 settings × 100 GSM8K samples with resume support |
-| `src/run_motivation_100.py` | Phase A driver: 100 samples baseline + per (step, layer) similarity dump |
-| `src/aggregate_results.py` | Compute FLOPs reduction and Pareto frontier from per-sample dumps |
-| `src/improve_phase_b_plot.py` | Render Figure 1 (acc-FLOPs scatter) and Table 1 |
-| `writeup_phase_b.md` | 2-page summary of implementation, formula, key findings, and future work |
-| `results/phase_b_aggregate.csv` | Per-setting accuracy, reuse rate, FLOPs reduction |
-| `results/summary_per_setting/` | 17 individual setting summaries (JSON) |
-| `figs/` | Phase A motivation figures (16) + Phase B Figure 1 + Table 1 |
+| `sim/` | performance-model code (functional, cycle, energy, roofline, per-workload) |
+| `src/trace_collection/` | activation-trace collection (SDM, DiT) |
+| `src/validation/` | bit-width reproduction (Fig 5) |
+| `docs/SUMMARY.md` | full honest write-up |
+| `docs/architecture_spec.md`, `docs/ditto_paper_notes.md` | block diagram / paper notes |
+| `figs/` | all figures (bit-width, roofline, energy, three-workload) |
+| `results/` | numeric outputs (JSON) |
+| `rtl/` | RTL track (Phase 3, optional/in progress) |
 
-## Implementation notes
+Key scripts: `energy_model.py` (six-segment energy), `fig13_roofline.py` (speedup), `dit_structure.py` / `dit_recompute.py` (DiT), `fastdllm_structure.py` / `gen_fastdllm_ditto.py` (Fast-dLLM), `validate.py` (cross-checks).
 
-We use **PyTorch forward hooks** in `step_cache.py` to implement skipping, rather than directly modifying `modeling.py`. This decouples the skipping logic from the model architecture and keeps the codebase cleaner. The single change to `modeling.py` is a `_compute_attention_stats` helper used only for Phase A's attention-weight histogram. See `writeup_phase_b.md` §1 for the rationale.
+## Reproducing
 
-## Key findings
+```bash
+# environment: diffusers, torch+CUDA, numpy, matplotlib
+# SDM speedup + energy (no trace needed; structural)
+python sim/fig13_roofline.py
+python sim/energy_model.py
 
-1. **Self-reinforcing token-level reuse**: Once a token is reused, its hidden state is bitwise-identical next step, so its cross-step similarity becomes exactly 1.0 — triggering reuse again forever. All five `token_cossim` thresholds (0.96–0.995) collapse to the same behavior. This is a fundamental limitation of self-referential decision criteria.
-2. **Layer-level avg yields a clean Pareto curve**, with the 0.995 threshold as a sweet spot (85% acc, 5% FLOPs reduction).
-3. **Layer-level max is unusable at block_size=32**: `max(sim)` over 32 tokens is almost always ≈ 1.0, triggering whole-layer skip on every step. All 5 max thresholds collapse to 0% accuracy.
-4. **TopK (especially k=50) is the practical winner**: by guaranteeing computation on the most-changed tokens, it sidesteps the self-reinforcing loop and achieves the best (acc, FLOPs) trade-off.
+# DiT and Fast-dLLM extendability
+python sim/dit_structure.py
+python sim/fastdllm_structure.py
 
-## Hardware used
-
-- GPU: NVIDIA RTX 5080 (16 GB VRAM)
-- Python: 3.11
-- PyTorch: 2.11.0 + CUDA 12.8 (sm_120)
-- Total compute time for Phase B sweep: ~13 hours
-
-## License
-
-MIT (see [LICENSE](LICENSE)).
-
-## Citation
-
-If you use this code or findings, please cite:
-
-```bibtex
-@misc{fastdllm-skipping-2026,
-  author = {Your Name},
-  title  = {Fast-dLLM v2 Compute-Skipping Experiments},
-  year   = {2026},
-  url    = {https://github.com/your-username/fastdllm-skipping}
-}
+# figures
+python sim/plot_roofline.py
+python sim/plot_energy.py
+python sim/plot_fig13_both.py            # three-workload energy
+python sim/plot_three_workload_trend.py
 ```
+
+Bit-width reproduction needs activation traces (collected separately; **not committed** — see `.gitignore`):
+
+```bash
+python src/trace_collection/collect_sdm_traces.py     # ~19 GB
+python src/validation/reproduce_fig5_bitwidth.py
+```
+
+## Status
+
+**Done:** functional datapath; Fig 5 bit-width; compute ceiling; MAC enumeration; memory ratio (2.46x); speedup roofline; six-segment energy (CACTI-backed, Cam-D, Defo); three-workload extendability (SDM/DiT/Fast-dLLM).
+
+**Boundaries / not done:** Fig 17 Defo-accuracy (analyzed infeasible on available layers); Diffy baseline; attention in the Ramulator main line; RTL (Phase 3, optional — independent track in `rtl/`). DiT/Fast-dLLM theoretical ceilings (16.49x / 28.42x) are bandwidth→∞ limits, **not attainable speedups**. See `docs/SUMMARY.md` §8 for the full boundary list.
+
+**Note:** A separate study skips whole attention/MLP modules in Fast-dLLM by cross-step *similarity* (delivered independently). This repo instead applies *Ditto's* per-element difference-quantization to Fast-dLLM; the two are compared in `docs/SUMMARY.md` §9.4.
+
+## Hardware
+
+Traces collected on RTX 5080; Ramulator2 + CACTI 7.0 compiled locally for memory cross-validation and SRAM energy.

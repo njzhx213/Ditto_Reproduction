@@ -20,3 +20,9 @@ __pycache__/
 *.bin
 *.pt
 *.pth
+
+# RTL simulation artifacts
+rtl/sim_build/
+rtl/**/sim_build/
+*.vvp
+results.xml

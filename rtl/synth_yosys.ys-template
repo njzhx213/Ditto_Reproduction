@@ -1,0 +1,18 @@
+# synth_yosys.ys-template  (open-source fallback, no Vivado license needed)
+#
+# Yosys gives gate/cell counts and a coarse critical-path estimate. It does NOT give a
+# real FPGA Fmax (use Vivado for that), but it's a license-free way to compare module
+# complexity and the pe_diff vs pe_diff_pipe critical-path difference.
+#
+# Usage (the helper script synth_yosys.sh fills in MODULE):
+#   yosys -p "read_verilog common/*.v; hierarchy -top <MODULE>; \
+#             proc; opt; fsm; opt; memory; opt; techmap; opt; \
+#             stat; ltp -noff"
+#
+# Key reports:
+#   stat       -> cell counts (proxy for area)
+#   ltp -noff  -> longest topological path through combinational logic (proxy for the
+#                 critical path; pe_diff should show a long mul->sum->acc chain,
+#                 pe_diff_pipe a much shorter per-stage path)
+#
+# This template is invoked by synth_yosys.sh; see that script.

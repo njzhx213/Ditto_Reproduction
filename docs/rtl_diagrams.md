@@ -95,6 +95,6 @@ flowchart TB
     class EU1,EUX,PE1,DA,DB,DS,TOP,AP,AS,RT lvl;
 ```
 
-All targets pass under cocotb + Icarus Verilog (`cd rtl && make {`, `x4`, `pe`,
-`datapath`, `datapath_b`, `datapath_slot`, `defo`, `array`, `array_sys`, `top`,
-`real_sdm` `}`).
+All targets pass under cocotb + Icarus Verilog: `cd rtl && make` then one of
+`encoding_unit` (default), `x4`, `pe`, `pipe`, `csa`, `datapath`, `datapath_b`,
+`datapath_slot`, `defo`, `diffgen`, `vpu`, `array`, `array_sys`, `top`, `real_sdm`.

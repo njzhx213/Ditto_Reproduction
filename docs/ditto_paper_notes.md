@@ -79,9 +79,9 @@ Stage 1: Subtract
 Stage 2: Classify into zero / 4-bit / 8-bit
   high_4bit = diff[i][7:4]              (sign-extended upper nibble)
   low_4bit  = diff[i][3:0]              (lower nibble)
-  
+
   ctrl = {high_part_nonzero, low_part_nonzero}   (2-bit control signal)
-  
+
   ctrl == 00: zero → skip
   ctrl == 01: low 4-bit only → enqueue low part
   ctrl == 1X: high part present (full 8-bit) → enqueue both parts + metadata
@@ -96,6 +96,8 @@ Stage 3: Reorder + enqueue
 
 Latency: subtraction + comparison in 1 cycle; enqueue in 1 cycle. Total Encoding Unit latency ≈ 2 cycles.
 
+**(Implementation note: the [-8,7] = 4-bit definition requires a sign-magnitude datapath, not a literal two's-complement nibble check — see `docs/architecture_spec.md` and the exhaustive RTL test.)**
+
 ### Compute Unit (PE) — Fig 12
 
 ```
@@ -107,59 +109,45 @@ Each PE:
 
 Per cycle:
   Inputs: 4 × 4-bit data + 4 × 8-bit weight + 4 × 1-bit metadata flag
-  
-  For each multiplier i:
-    prod[i] = data[i] * weight[i]
-  
-  Shifter (paired):
-    if metadata[i] == 1:
-      prod[i] <<= 4    (this was the high 4-bit of an 8-bit value)
-  
-  Adder tree:
-    sum = prod[0] + prod[1] + prod[2] + prod[3]
-  
-  Accumulator:
-    psum_reg += sum
+  For each multiplier i: prod[i] = data[i] * weight[i]
+  Shifter: if metadata[i]: prod[i] <<= 4
+  Adder tree: sum = prod[0..3]
+  Accumulator: psum_reg += sum
 ```
 
-Throughput: 4 elements per cycle per PE. With 39398 PEs and 4-bit operands → 39398 × 4 = 157592 MAC/cycle = 157.6 TOPS at 1 GHz.
+Throughput: 4 elements per cycle per PE. With 39398 PEs and 4-bit operands → 157.6 TOPS at 1 GHz.
 
 ### VPU
-- Non-linear functions (SiLU, GeLU, Softmax, LayerNorm, GroupNorm)
-- Quantization and dequantization
-- Summation of (δ × W) + out_{t-1}
-- Pipelined with Compute Unit
-- 2.9% of total energy, ~0.17% of latency (overlap with compute)
+- Non-linear functions (SiLU, GeLU, Softmax, LayerNorm, GroupNorm), quant/dequant, summation of (δ × W) + out_{t-1}. Pipelined with Compute Unit. 2.9% of total energy, ~0.17% of latency.
 
 ### Defo Unit
-- 512 entries × 33-bit (16-bit Cycle_act + 16-bit Cycle_diff + 1-bit decision)
-- Comparator + control logic
-- 0.01% of total area — barely shows up in PPA reports.
+- 512 entries × 33-bit (16-bit Cycle_act + 16-bit Cycle_diff + 1-bit decision). Comparator + control. 0.01% of area.
 
 ## VI. Evaluation methodology (Section VI-A)
 
-- **Simulator**: open-source Sparse-DySta cycle-accurate simulator (IROS '23). Modified to detect zero / low-bit / full-bit temporal differences from PyTorch hooks.
-- **Baselines**: ITC (Tensor-Core-like, integer MAC), Diffy (spatial diff), Cambricon-D (temporal diff with outlier PEs).
-- **Iso-area comparison**: all hardware at same SRAM size, same frequency.
+- **Simulator**: open-source Sparse-DySta cycle-accurate simulator (IROS '23), modified to detect zero / low-bit / full-bit temporal differences from PyTorch hooks.
+- **Baselines**: ITC (Tensor-Core-like integer MAC), Diffy (spatial diff), Cambricon-D (temporal diff with outlier PEs).
+- **Iso-area**: all hardware at same SRAM size, same frequency.
 - **Workloads**: 7 models (Table I). SDM uses Stable-Diffusion COCO2017 PLMS 50-step.
-- **Accuracy preservation**: Table II shows FID/IS/CS for FP32 vs Ditto-quantized — Ditto preserves quality.
+- **Accuracy**: Table II FID/IS/CS for FP32 vs Ditto-quantized — quality preserved.
 
-## VII. Reproduction priority for our project
+## VII. What we reproduced (vs the paper's figures)
 
-Critical to reproduce (Week 1–2):
-1. **Fig 5 SDM column**: zero %, ≤4-bit %, >4-bit % for activations, spatial diff, temporal diff
-2. **Fig 13 SDM**: Ditto vs ITC speedup (target 1.5×, accept ±20%)
-3. **Fig 17 SDM**: Defo accuracy (target 92%)
+Reproduced from this paper (see `docs/SUMMARY.md` for evidence and honest boundaries):
+1. **Fig 5 SDM bit-width**: zero / ≤4-bit / >4-bit for temporal differences — reproduced (45.9% zero vs paper 44.48%).
+2. **Fig 13 SDM speedup/energy**: speedup as a bandwidth roofline reaching the paper's 1.5×; six-segment energy with the Cambricon-D inversion (1.34×) and Ditto saving (34%).
+3. **Fig 16 Defo rescue**: difference-only drops below ITC under tight memory; Defo holds ≥1.0×.
 
-Not reproducing (out of scope):
-- Other 6 models (DDPM/BED/CHUR/IMG/DiT/Latte) — SDM-only scope per PPT
-- Sign-mask data flow comparison with Cambricon-D
-- Cross-task spatial similarity (Defo+ Latte gains)
-- Synthesis PPA numbers (optional Week 4)
+Analyzed but found infeasible on our data:
+- **Fig 17 Defo accuracy (92%)**: our trace covers only compute-heavy layers, so `diff` wins regardless and Defo never flips (degenerate ~100%); needs memory-bound layers we structurally lack. Recorded as analyzed infeasibility (SUMMARY §8), not a target silently dropped.
 
-## VIII. Things the paper does not explicitly specify (we have to choose)
+Extended **beyond** the paper's scope:
+- **DiT-XL/2** (image diffusion transformer) and **Fast-dLLM v2** (7B text diffusion LLM, not benchmarked by the paper) run through the same model — the extendability requirement (SUMMARY §9). So the earlier "SDM-only" plan was extended: DiT and Fast-dLLM are done.
+- **RTL compute core** + Vivado synthesis (SUMMARY §10) — the paper's PPA is reproduced in spirit (carry-save accumulator finding), not just modeled.
 
-- **Quantization calibration**: paper uses Q-Diffusion's calibration scripts. We can either reuse Q-Diffusion or do simple dynamic A8W8 (mentioned for DiT/Latte in paper).
-- **Encoding Unit queue depth**: paper says "low latency" but not exact depth. We'll size to match Compute Unit throughput (4×4-bit/cycle in, 4×4-bit/cycle out).
-- **DRAM bandwidth**: paper uses "fixed memory configuration" but doesn't state BW number. Tensor Core baseline GPU has 1.5 TB/s; we'll use this as starting assumption.
-- **PE clustering**: 39398 PEs is the total count. Paper doesn't say how they're grouped into clusters / shared SRAM banks. We'll assume 256 PEs per cluster × 154 clusters ≈ 39398.
+## VIII. Things the paper does not explicitly specify (we had to choose)
+
+- **Quantization calibration**: paper uses Q-Diffusion's calibration; we use dynamic per-tensor A8W8. The >4-bit fraction is calibration-dependent (dynamic → ~0%, tighter → toward the paper's ~4%); flagged throughout, not fitted.
+- **DRAM bandwidth / size**: paper's Table III has **no DRAM row**. We do **not** assume a single value — speedup is a **bandwidth roofline** (the paper's 1.5× is reached at ~251 GB/s; its 14.4% Defo-flip reverse-estimates the DRAM to ~3.2 TB/s). (An earlier draft of these notes assumed 1.5 TB/s; that was superseded by the roofline — see SUMMARY §3.)
+- **Encoding Unit queue depth**: not specified; sized to match the PE throughput (4 × 4-bit/cycle).
+- **PE clustering**: only the total 39398 PEs is given, not the grouping; the RTL builds a representative 4×4 tile.

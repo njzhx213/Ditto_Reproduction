@@ -269,8 +269,10 @@ flowchart LR
     PE -->|slots_total| DF[defo_unit]
     META[n_macs,act_bytes,bw] --> DF
     DF -->|mode_diff| MODE[DIFF or ACT]
-    classDef b fill:#e8f0fe,stroke:#4a7fb5; classDef io fill:#f5f5f5,stroke:#999;
-    class DG,EU,PE,VR,DF b; class D,W,OUT,META,MODE io;
+    classDef b fill:#e8f0fe,stroke:#4a7fb5
+    classDef io fill:#f5f5f5,stroke:#999
+    class DG,EU,PE,VR,DF b
+    class D,W,OUT,META,MODE io
 ```
 
 All RTL targets pass under cocotb + Icarus Verilog: `make` (encoding_unit), `x4`, `pe`, `pipe`, `datapath`, `datapath_b`, `datapath_slot`, `defo`, `diffgen`, `vpu`, `array`, `array_sys`, `top`, `real_sdm`.

@@ -66,6 +66,7 @@ A 13-module Verilog implementation of the Ditto datapath, built top-down and ver
 | `docs/SUMMARY.md` | full honest write-up |
 | `docs/architecture_spec.md`, `docs/ditto_paper_notes.md` | block diagram / paper notes |
 | `figs/` | all figures (bit-width, roofline, energy, three-workload, RTL Fmax) |
+| `docs/figures.md` | reading guide to every figure (what each shows, key numbers, honest labels) |
 | `results/` | numeric outputs (JSON) |
 | `rtl/` | RTL compute core (Phase 3): `common/*.v` (13 modules), `tb/*.py` (cocotb), `Makefile`, synthesis scripts, `SYNTHESIS.md` |
 | `docs/rtl_diagrams.md` | RTL datapath block diagram + verification hierarchy (Mermaid) |
@@ -84,11 +85,15 @@ python sim/energy_model.py
 python sim/dit_structure.py
 python sim/fastdllm_structure.py
 
-# figures
-python sim/plot_roofline.py
-python sim/plot_energy.py
-python sim/plot_fig13_both.py            # three-workload energy
-python sim/plot_three_workload_trend.py
+# figures (one per script; outputs to figs/ — see docs/figures.md for what each shows)
+python sim/plot_roofline.py              # fig13_roofline.png  (main speedup)
+python sim/plot_fig16.py                 # fig16_defo_rescue.png
+python sim/plot_energy.py                # fig13_energy.png     (SDM six-segment)
+python sim/plot_fig13_both.py            # fig13_energy_three.png  (three-workload energy)
+python sim/plot_bitwidth_three.py        # bitwidth_three_workloads.png
+python sim/plot_three_workload_trend.py  # three_workload_trend.png
+python sim/plot_rtl_fmax.py              # rtl_fmax.png        (RTL synthesis)
+# fig5_bitwidth_sdm.png is produced by src/validation/reproduce_fig5_bitwidth.py (needs traces)
 ```
 
 Bit-width reproduction needs activation traces (collected separately; **not committed** — see `.gitignore`):

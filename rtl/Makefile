@@ -121,3 +121,11 @@ pipe:
 	  VERILOG_SOURCES="$(PWD)/common/pe_diff_pipe.v" \
 	  TOPLEVEL=pe_diff_pipe \
 	  MODULE=test_pe_diff_pipe
+
+# --- carry-save accumulator PE (tests the accumulator-bottleneck hypothesis) ---
+.PHONY: csa
+csa:
+	$(MAKE) \
+	  VERILOG_SOURCES="$(PWD)/common/pe_diff_csa.v" \
+	  TOPLEVEL=pe_diff_csa \
+	  MODULE=test_pe_diff_csa

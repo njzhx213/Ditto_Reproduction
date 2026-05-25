@@ -36,6 +36,16 @@ See **[docs/SUMMARY.md](docs/SUMMARY.md)** for the full, honest write-up (every 
 - **Defo** runtime decision + the "naive difference is slower" rescue (Fig 16).
 - **Extendability**: DiT-XL/2 and Fast-dLLM v2, each with its own measured temporal sparsity.
 
+## Parameters the paper does not publish
+
+Several parameters needed for an absolute speedup/energy number are not in the paper. None was tuned to hit a figure; each is handled explicitly and labeled (full treatment in `docs/SUMMARY.md` §3–§4):
+
+- **DRAM bandwidth and size** — Table III lists PEs, bit-width, power, 192 MB SRAM, area, and frequency, but **no DRAM row**. So speedup is reported as a **bandwidth roofline** (bandwidth is the explicit sweep axis), not a single assumed point; the paper's 1.5x is overlaid as a reference line and is reached at ~251 GB/s (single-HBM2 class), and the paper's 14.4% Defo-flip reverse-estimates the unpublished DRAM to ~3.2 TB/s (HBM-class). Four cycle-accurate attempts to pin one absolute number each hit a documented structural limit.
+- **Previous-frame traffic / buffer residency** — difference processing must re-read the previous step's activations (cross-step data SRAM can't hold); modeling prev-frame operands as forced-DRAM while weights stay SRAM-resident is what reproduces *both* the ITC core-dominance and the Cambricon-D inversion (a single global buffer knob cannot).
+- **SRAM per-access energy** — CACTI-7.0-measured (45 nm, 818 pJ/64 B), replacing an earlier hand-guess that was ~40x too low.
+- **EU / VPU / Defo energy** — modeled and labeled as modeled, not taken from the paper.
+- **Theoretical compute ceilings** (8.89x SDM / 16.49x DiT / 28.42x Fast-dLLM) are bandwidth→∞ limits — **not attainable speedups**; at realistic bandwidth all three are memory/Defo-bound and comparable (~1.5x).
+
 ## RTL compute core (Phase 3)
 
 A 13-module Verilog implementation of the Ditto datapath, built top-down and verified bottom-up against the functional model (numpy golden reference) under cocotb + Icarus Verilog — all targets pass.

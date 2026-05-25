@@ -282,17 +282,21 @@ All RTL targets pass under cocotb + Icarus Verilog: `make` (encoding_unit), `x4`
 
 ## Figures (actual files in `figs/`)
 
+See [docs/figures.md](figures.md) for a full reading guide to every figure. Summary:
+
 | File | Shows | Scope / status |
 |---|---|---|
-| `fig5_bitwidth_sdm.png` | SDM temporal-diff bit-width split (45.9% zero) | reproduced, vs paper 44.48% |
-| `fig16_defo_rescue.png` | diff-only drops below ITC; Defo recovers >= 1.0x | reproduced (Fig 16) |
-| `fig13_roofline.png` | speedup & Defo-flip vs bandwidth, paper 1.5x / 14.4% overlaid; ceiling 8.89x | the main speedup deliverable (Section 3) |
-| `fig13_energy.png` | SDM six-segment energy: ITC / Cam-D (1.34x) / Ditto (saving 34%) | energy deliverable (Section 4) |
-| `fig13_energy_three.png` | SDM / DiT / Fast-dLLM six-segment energy side by side, each with its own bit-width; Ditto bar 0.66/0.54/0.30, Cam-D 1.34/1.14/1.04 | three-workload energy (Section 9.3) |
+| `fig5_bitwidth_sdm.png` | SDM temporal-diff bit-width split (45.9% zero), dynamic vs calib vs paper | reproduced, vs paper 44.48% |
 | `bitwidth_three_workloads.png` | temporal-diff bit-width for SDM / DiT / Fast-dLLM (text most sparse) | three-workload (Section 9) |
+| `fig13_roofline.png` | speedup & Defo-flip vs bandwidth, paper 1.5x / 14.4% overlaid; ceiling 8.89x | the main speedup deliverable (Section 3) |
+| `fig16_defo_rescue.png` | diff-only drops to 0.67x below ITC; Defo recovers >= 1.0x | reproduced (Fig 16) |
+| `fig13_sweep.png` | memory ratio vs buffer (paper 2.75x) + speedup vs bandwidth, two swept knobs | support for Section 2 |
+| `fig13_energy.png` | SDM six-segment energy: ITC / Cam-D (1.34x) / Ditto (saving 34%) | energy deliverable (Section 4) |
+| `fig13_energy_three.png` | SDM / DiT / Fast-dLLM six-segment energy; Ditto 0.66/0.54/0.30, Cam-D 1.34/1.14/1.04 | three-workload energy (Section 9.3) |
 | `three_workload_trend.png` | saving / Cam-D / sparsity / attention-fraction monotone trend across the three | the extendability headline (Section 9.3) |
+| `rtl_fmax.png` | PE synthesis Fmax: ~600 MHz carry-propagate vs 3021 MHz carry-save (5x) | RTL synthesis (Section 10) |
 
-(An earlier `fig13_full_unet.png`, based on a since-rejected disguised-bandwidth model, was removed.)
+(Earlier `fig13_energy_both.png` (SDM+DiT) was superseded by `fig13_energy_three.png`; `fig13_full_unet.png`, based on a since-rejected disguised-bandwidth model, was removed.)
 
 ---
 

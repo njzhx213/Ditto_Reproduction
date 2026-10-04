@@ -1,0 +1,301 @@
+% Standalone methodology draft for https://github.com/njzhx213/qemu-passes
+% Repository snapshot consulted: main, as presented by GitHub on 2026-10-04.
+% This file deliberately lives outside that repository so it can be downloaded
+% and reviewed before being copied into the paper source tree.
+
+\section{Methodology}\label{sec:methodology}
+
+\subsection{Framework overview}\label{sec:framework-overview}
+
+Our framework converts synthesizable peripheral RTL into executable device
+models for firmware rehosting.  Its inputs are SystemVerilog RTL, elaboration
+parameters, interface bindings, and SoC-level connection metadata.  CIRCT's
+\texttt{circt-verilog} frontend elaborates the RTL and produces MLIR containing
+LLHD and HW dialect operations.  A sequence of normalization, analysis, and
+lowering passes turns that representation into a flat, stateful C model.  A
+generated QEMU wrapper exposes the model as an MMIO device and connects its
+non-MMIO interfaces to reusable adapters (called \emph{organs} in the
+implementation).  SoC generation then instantiates the devices at their
+platform addresses and wires interrupts, pins, alerts, and peer buses.
+
+The pipeline has two complementary modeling paths.  The \emph{execution path}
+retains the elaborated RTL state and control logic and emits an executable C
+transition system.  The \emph{behavioral path} retains the RTL register block
+but replaces a selected internal core with a declarative behavior table and a
+shared runtime.  The former maximizes reuse of RTL semantics; the latter is a
+deliberate abstraction for cores whose full cycle-level implementation is
+unnecessary or impractical for the intended firmware experiment.  Both paths
+join at the same QEMU-facing interface and are evaluated with the same layered
+validation discipline.
+
+\figplaceholder{RTL, parameters, bindings, and SoC metadata entering a CIRCT/
+LLHD pipeline.  Split the normalized IR into (i) execution-model lowering and
+(ii) register-block plus behavior-table lowering.  Join both at generated C
+models, reusable QEMU organs, SoC glue, and firmware validation.  Mark generated,
+declarative, shared-runtime, and handwritten artifacts with distinct styles.}
+{Architecture of the RTL-derived firmware-rehosting framework.}
+{fig:architecture}
+
+We treat generation as a chain of explicit contracts rather than as a single
+``RTL-to-QEMU'' claim.  The frontend contract is successful elaboration with the
+intended parameters.  The compiler contract is that every retained operation is
+either lowered or reported, never silently discarded.  The binding contract is
+that every externally relevant port has a declared role.  The integration
+contract is that generated instances and their connections match the selected
+SoC.  Finally, passing firmware is evidence only for the paths that the firmware
+actually exercises.
+
+\subsection{T1: execution semantics translation and behavioral abstraction}
+
+\subsubsection{State representation and scheduling contract}
+
+For a peripheral instance, the emitter produces a C state structure containing
+registers, signals, memories represented by the supported aggregate forms, and
+flattened input and output leaves.  Let $s_k$ denote clocked state immediately
+before model step $k$, $u_k$ the externally supplied inputs, and $c_k$ the
+combinational values after settling.  The intended schedule is
+\begin{align}
+  c_k &= G(s_k,u_k), \\
+  s_{k+1} &= F(s_k,c_k,u_k).
+\end{align}
+The generated \texttt{update\_state()} evaluates combinational logic in
+dependency order.  Strongly connected components that cannot be topologically
+ordered are evaluated with a bounded local fixed-point procedure.  The generated
+\texttt{tick()} computes all next-state values into temporary
+\texttt{\_qp\_next\_*} storage before committing them.  This two-phase update is
+essential: sequential assignments that are simultaneous in RTL must not acquire
+an ordering merely because their C statements are ordered.
+
+This schedule is an executable contract, not a formal equivalence proof.  The
+lowering must additionally preserve bit widths, signedness, slices,
+concatenations, packed and unpacked aggregate layout, dynamic indexing, instance
+specialization, and port connectivity.  Unsupported constructs and unresolved
+bridges are therefore surfaced by translation audits rather than converted to
+plausible default values.  Wide values are handled as word arrays when they do
+not fit the host scalar representation; partial writes to the same word use the
+pre-edge or already-staged value required by the source semantics.
+
+\subsubsection{MMIO transactions and bounded settling}
+
+Generated read and write entry points translate a QEMU MMIO operation into a
+TL-UL request.  An access asserts the request, evaluates combinational logic,
+advances one request clock, deasserts the request, and then invokes the common
+settle loop.  The loop repeatedly evaluates and ticks the model until one of
+three exits occurs:
+\begin{enumerate}
+  \item \textbf{fixed point:} a tick changes no sequential state;
+  \item \textbf{revisited state:} Brent cycle detection finds a repeated
+        fingerprint of the complete generated sequential state; or
+  \item \textbf{budget exhaustion:} the access consumes the configured budget
+        (65,536 ticks in the evaluated repository snapshot).
+\end{enumerate}
+
+The fixed-point exit is normal quiescence.  A repeated state is reported as an
+autonomous oscillation for the fixed external inputs: because the comparison
+covers the generated sequential state rather than only selected progress bits,
+it detects periods longer than two without retaining an unbounded history.
+Budget exhaustion is instead a responsiveness boundary.  It is logged, is not
+reported as successful device completion, and leaves state available for
+continuation on a later access or external event.  This distinction is needed
+for engines such as DMA: a long but progressing transfer must not be labeled an
+oscillation merely because it exceeds a short callback window.
+
+The fingerprint does not by itself encode changes outside the model.  A reusable
+adapter that can synchronously call back into the device must therefore obey the
+settle contract.  In particular, the generated busy guard prevents recursive
+settling: a re-entrant pin update records the new raw input and the outer loop
+observes it on its next iteration.  Tests separately exercise fixed points,
+injected cycles, budget continuation, and adapter-driven progress.
+
+\subsubsection{Event clocks and time-dependent state}
+
+Ordinary settling is transaction driven, whereas timers and serial protocols
+also depend on events that occur without a CPU MMIO access.  The model retains
+edge conditions for externally observable clocks, and adapters inject changes
+to clock, pin, or serial input leaves.  Virtual-time pump adapters advance the
+free-running timer models while the guest is waiting, allowing timer interrupts
+to wake a CPU in \texttt{wfi}.  Clock-ratio state converts a QEMU scheduling
+interval into the device-clock advances used by the selected instance.
+
+Pump policy is part of the evaluated configuration rather than an inherent
+property of LLHD lowering.  For every time-dependent device we record the pump
+source, nominal ratio, batching rule, and stopping condition.  Consequently, the
+framework claims functional event ordering and the tested interrupt milestones,
+not cycle-accurate correspondence between QEMU virtual time and silicon time.
+
+\subsubsection{Register-block behavioral abstraction}
+
+The alternative path keeps the generated register interface and expresses the
+abstracted core as a table interpreted by a shared runtime.  A table row can
+apply an immediate register effect, schedule a deferred event, or access a
+storage window.  Abstractly, the runtime implements
+\begin{equation}
+  (q,a,e,t) \longmapsto (q',E'),
+\end{equation}
+where $q$ is quiescent device state, $a$ an optional bus access, $e$ an external
+event, $t$ virtual time, and $E'$ the updated deferred-event set.  It preserves
+the software-visible contract selected for the experiment, not every internal
+clock or microarchitectural state.
+
+Scope selection is based on structural and peer-aware analysis: whether state is
+observable through registers or interrupts, whether a transport must remain
+live, whether firmware checks a computed result, and whether the peripheral is
+part of a cross-device validation group.  The table and its classification are
+declared experimental inputs and are versioned alongside bindings.  Where both
+an execution model and a behavioral model exist, trace replay compares their
+selected MMIO results and externally visible events.  Independent known-answer
+tests remain necessary because two outputs produced from the same compiler input
+can share a defect.
+
+\subsection{T2: declarative peripheral and system integration}
+
+\subsubsection{Structural digests, bindings, and reusable organs}
+
+Before QEMU code generation, the pipeline emits a digest of flattened ports,
+widths, directions, clocks, resets, and candidate interfaces.  A binding file
+assigns semantic roles that cannot reliably be recovered from names alone.  The
+generator checks the binding against the digest so that stale port names, width
+mismatches, missing members, and ambiguous buses fail early.
+
+Bindings select reusable QEMU organs for character I/O, primary and auxiliary
+pin groups, interrupts, alert inputs, timers, SPI, I2C, and bus mastering.  They
+may also declare intentional constant inputs, for example environmental or
+fault-countermeasure signals not supplied by the selected board.  Every such tie
+is auditable configuration, not proof that the tied-off behavior is generally
+correct.  We report tied inputs and unconnected outputs per device and distinguish
+them from ports exercised by a peer.
+
+For DMA, the \texttt{bus\_master} organ observes the generated model's TL-UL host
+requests, performs the corresponding access in QEMU's address space, and returns
+the response to the model.  Transfer sequencing, address updates, chunking, and
+interrupt generation remain consequences of the RTL engine.  The evaluation
+records accepted transfer sizes, byte-mask handling, fixed versus incrementing
+addresses, address-space selection, and propagation of bus errors; a negative
+test supplies an invalid transaction and requires the firmware-visible error
+path to fire.
+
+\subsubsection{Bridging signal- and transaction-level interfaces}
+
+Some interfaces cannot be integrated by directly mapping like-named ports.  An
+RTL SPI master exposes clocks, chip select, and individual bits, whereas QEMU's
+SSI peer exchanges bytes.  The SPI-master organ therefore uses
+snapshot--speculate--replay.  At a byte boundary it snapshots model state,
+speculatively advances enough edges to recover the outgoing byte, exchanges that
+byte with the SSI peer, restores the snapshot, and replays the same edges with
+the returned input bits.  The committed trajectory thus contains the peer's
+response while the peer transaction is issued only once.
+
+We validate this bridge at two levels: a generated SPI host communicates with a
+QEMU flash using an unmodified OpenTitan DIF driver, and a closed loop routes a
+generated host through the pin bridge into a generated SPI device.  The method
+records supported SPI mode, bit order, chip-select assumptions, and the number
+of speculative and replayed edges per transferred byte.  Snapshot/replay is a
+functional granularity bridge; it is not a claim of host-time performance or
+analog timing fidelity.
+
+I2C requires a different bridge because SDA and SCL are bidirectional open-drain
+wires.  The organ resolves all drivers into a shared line value and feeds the
+result back to the model.  The self-loop test uses one generated instance in both
+host and target roles and checks START, address, acknowledgement, and captured
+data.  Pin groups similarly map named generated outputs and inputs through QEMU
+GPIO arrays; auxiliary groups cover non-primary buses such as the pinmux
+peripheral side.
+
+\subsubsection{SoC metadata and connected execution}
+
+SoC metadata supplies each instance's RTL top, elaboration parameters, MMIO
+range, interrupt source, binding, and peer connections.  Using instance
+parameters is necessary because a standalone IP default need not match its
+Earl Grey instantiation.  Generation produces device declarations, creation and
+mapping code, and connection glue; small board-specific adapters remain
+handwritten and are reported separately.
+
+Connected-device groups are first-class validation units.  In the evaluated
+snapshot these include: UART receive to a DMA hardware-handshake trigger and DMA
+bus-master reads into SRAM; DMA streaming a message into HMAC and receiving the
+completion interrupt through the generated PLIC; UART alert injection through
+the generated alert handler and PLIC; PWM and pattern-generator outputs routed
+through pinmux and a pad loopback into GPIO; and SPI and I2C self-loops.  Such
+rings test data and control paths that isolated register tests cannot reach.  A
+ring is counted as covered only when its endpoint asserts a content-level result
+(for example byte-exact memory or digest data), not merely when all components
+were instantiated.
+
+The frozen inventory contains 17 translated peripherals and a regression gate
+of 54 targets.  This number denotes the repository's named configurations and
+tests, not exhaustive feature coverage.  The evaluation table therefore reports
+for every peripheral: frontend/register status, backend organ, generated versus
+handwritten integration, gate targets, exercised features, tied interfaces, and
+known untested features.  In particular, exported pins without a waveform or
+peer-level assertion are not labeled end-to-end validated.
+
+\subsection{T3: layered validation for trustworthy rehosting}
+
+No single test establishes RTL equivalence or platform completeness.  We use
+four cumulative layers and preserve the failure artifacts from each layer.
+
+\paragraph{L1: compiler and structural audits.}
+The compiler records unsupported operations, dropped or complex expressions,
+unresolved inputs, undriven outputs, assignment coverage, and connection
+consistency.  Generated C is compiled with warnings enabled, and all generated
+instances are checked against their binding and SoC metadata.  These checks can
+reach code that firmware never executes, but they cannot show that a lowered
+operation has the correct semantics.
+
+\paragraph{L2: register conformance.}
+Host harnesses and firmware exercise reset values, read/write permissions,
+masks, write-one-to-clear fields, FIFO/window behavior, side effects, and
+register locks.  Coverage is computed against an explicit register/field
+inventory.  A register is ``touched'' when an access reaches it and
+``semantically checked'' only when an independent assertion verifies its value
+or side effect; the evaluation reports these measures separately.
+
+\paragraph{L3: functional, known-answer, and differential checks.}
+Cryptographic blocks use published independent vectors: SHA-256 through HMAC,
+AES-128 ECB and CTR, and SHA3/cSHAKE/KMAC modes.  Multi-operation tests check
+state transitions such as counter advancement, mode changes, prefix/key
+handling, and interrupt clearing, rather than only a final single operation.
+When a reference implementation exposes intermediate rounds, the harness
+compares the first diverging state to localize compiler errors.  Differential
+trace replay between model forms supplements these known-answer tests but does
+not replace them.
+
+\paragraph{L4: real software and connected execution.}
+The strongest tests boot the generated devices inside the lowRISC/OpenTitan QEMU
+machine and drive them with OpenTitan DIF code or an official smoke test.  They
+cover character I/O, external peers, DMA, interrupts, alerts, and the connected
+rings described above.  Every target has an explicit oracle: exact bytes,
+register values, interrupt observation, a published digest/ciphertext, or a
+documented boot milestone.  Runtime stand-ins and source changes are listed per
+target.  A boot or passing smoke test proves only its named milestone and is not
+reported as complete operating-system or peripheral support.
+
+\paragraph{Negative controls and anomaly attribution.}
+For each major mechanism, we introduce a fault expected to invalidate a nearby
+oracle: corrupt a generated data-path operation, disconnect an interrupt or
+alert, invalidate a bus address, alter a byte mask, or inject an autonomous
+oscillation.  A test contributes mechanism evidence only if the corresponding
+negative control fails.  Crashes and hangs are classified using the settle exit,
+generated trace, QEMU log, and an independent reference; they are not attributed
+to guest firmware solely because they occur while running that firmware.
+
+\subsection{Reproducibility protocol and validity boundaries}
+
+Experiments pin the qemu-passes revision, CIRCT revision and build type,
+OpenTitan/lowRISC QEMU revision, RTL source revision, bindings, SoC description,
+compiler flags, firmware source revision, and each test command.  Generated
+artifacts are rebuilt from those inputs rather than treated as ground truth.  A
+machine-readable manifest stores these identifiers together with the per-device
+model hash and gate outcome.  We archive the complete stdout/stderr log and the
+first divergent trace for failures.
+
+The reported results establish that the tested RTL-derived models preserve the
+software-visible behavior required by the named tests.  They do not establish
+formal equivalence to RTL, cycle accuracy, analog behavior, complete OpenTitan
+coverage, or correctness of unexercised modes.  Constant-tied environmental and
+security inputs narrow the modeled threat environment.  Frontend workarounds or
+semantics-preserving RTL overlays are enumerated and versioned because they are
+part of the experimental input.  Finally, shared compiler and generator code can
+create correlated errors across devices; independent standards-based vectors,
+external QEMU peers, official firmware, and negative controls are used to reduce
+rather than eliminate this risk.
